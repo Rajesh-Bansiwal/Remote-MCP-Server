@@ -2,6 +2,7 @@ from fastmcp import FastMCP
 import os
 import aiosqlite  # Changed: sqlite3 → aiosqlite
 import tempfile
+import sqlite3
 # Use temporary directory which should be writable
 TEMP_DIR = tempfile.gettempdir()
 DB_PATH = os.path.join(TEMP_DIR, "expenses.db")
@@ -39,22 +40,42 @@ def init_db():  # Keep as sync for initialization
 init_db()
 
 @mcp.tool()
-async def add_expense(date, amount, category, subcategory="", note=""):  # Changed: added async
-    '''Add a new expense entry to the database.'''
-    try:
-        async with aiosqlite.connect(DB_PATH) as c:  # Changed: added async
-            cur = await c.execute(  # Changed: added await
-                "INSERT INTO expenses(date, amount, category, subcategory, note) VALUES (?,?,?,?,?)",
-                (date, amount, category, subcategory, note)
-            )
-            expense_id = cur.lastrowid
-            await c.commit()  # Changed: added await
-            return {"status": "success", "id": expense_id, "message": "Expense added successfully"}
-    except Exception as e:  # Changed: simplified exception handling
-        if "readonly" in str(e).lower():
-            return {"status": "error", "message": "Database is in read-only mode. Check file permissions."}
-        return {"status": "error", "message": f"Database error: {str(e)}"}
-    
+# async def add_expense(date, amount, category, subcategory="", note=""):  # Changed: added async
+#     '''Add a new expense entry to the database.'''
+#     try:
+#         async with aiosqlite.connect(DB_PATH) as c:  # Changed: added async
+#             cur = await c.execute(  # Changed: added await
+#                 "INSERT INTO expenses(date, amount, category, subcategory, note) VALUES (?,?,?,?,?)",
+#                 (date, amount, category, subcategory, note)
+#             )
+#             expense_id = cur.lastrowid
+#             await c.commit()  # Changed: added await
+#             return {"status": "success", "id": expense_id, "message": "Expense added successfully"}
+#     except Exception as e:  # Changed: simplified exception handling
+#         if "readonly" in str(e).lower():
+#             return {"status": "error", "message": "Database is in read-only mode. Check file permissions."}
+#         return {"status": "error", "message": f"Database error: {str(e)}"}
+@mcp.tool()
+async def add_expense(date, amount, category, subcategory="", note=""):
+    import os
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO expenses(date, amount, category, subcategory, note)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (date, amount, category, subcategory, note),
+        )
+        conn.commit()
+
+    return {
+        "status": "success",
+        "id": cur.lastrowid,
+        "db_path": DB_PATH,
+        "db_exists": os.path.exists(DB_PATH),
+    }    
+
 @mcp.tool()
 async def list_expenses(start_date, end_date):  # Changed: added async
     '''List expense entries within an inclusive date range.'''
