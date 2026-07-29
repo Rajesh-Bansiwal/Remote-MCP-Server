@@ -1,0 +1,4 @@
+uv init .
+uv add fastmcp
+uv run main.py
+uv run fastmcp dev inspector main.py
